@@ -1,5 +1,5 @@
 --[[
-Copyright (c) 2012-2013 Matthias Richter
+Copyright (c) 2010-2013 Matthias Richter
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -24,63 +24,20 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ]]--
 
+local assert = assert
 local sqrt, cos, sin, atan2 = math.sqrt, math.cos, math.sin, math.atan2
 
-local function str(x,y)
-	return "("..tonumber(x)..","..tonumber(y)..")"
-end
+local vector = {}
+vector.__index = vector
 
-local function mul(s, x,y)
-	return s*x, s*y
+local function new(x,y)
+	return setmetatable({x = x or 0, y = y or 0}, vector)
 end
-
-local function div(s, x,y)
-	return x/s, y/s
-end
-
-local function add(x1,y1, x2,y2)
-	return x1+x2, y1+y2
-end
-
-local function sub(x1,y1, x2,y2)
-	return x1-x2, y1-y2
-end
-
-local function permul(x1,y1, x2,y2)
-	return x1*x2, y1*y2
-end
-
-local function dot(x1,y1, x2,y2)
-	return x1*x2 + y1*y2
-end
-
-local function det(x1,y1, x2,y2)
-	return x1*y2 - y1*x2
-end
-
-local function eq(x1,y1, x2,y2)
-	return x1 == x2 and y1 == y2
-end
-
-local function lt(x1,y1, x2,y2)
-	return x1 < x2 or (x1 == x2 and y1 < y2)
-end
-
-local function le(x1,y1, x2,y2)
-	return x1 <= x2 and y1 <= y2
-end
-
-local function len2(x,y)
-	return x*x + y*y
-end
-
-local function len(x,y)
-	return sqrt(x*x + y*y)
-end
+local zero = new(0,0)
 
 local function fromPolar(angle, radius)
 	radius = radius or 1
-	return cos(angle)*radius, sin(angle)*radius
+	return new(cos(angle) * radius, sin(angle) * radius)
 end
 
 local function randomDirection(len_min, len_max)
@@ -89,98 +46,173 @@ local function randomDirection(len_min, len_max)
 
 	assert(len_max > 0, "len_max must be greater than zero")
 	assert(len_max >= len_min, "len_max must be greater than or equal to len_min")
-
-	return fromPolar(math.random()*2*math.pi,
+	
+	return fromPolar(math.random() * 2*math.pi,
 	                 math.random() * (len_max-len_min) + len_min)
 end
 
-local function toPolar(x, y)
-	return atan2(y,x), len(x,y)
+local function isvector(v)
+	return type(v) == 'table' and type(v.x) == 'number' and type(v.y) == 'number'
 end
 
-local function dist2(x1,y1, x2,y2)
-	return len2(x1-x2, y1-y2)
+function vector:clone()
+	return new(self.x, self.y)
 end
 
-local function dist(x1,y1, x2,y2)
-	return len(x1-x2, y1-y2)
+function vector:unpack()
+	return self.x, self.y
 end
 
-local function normalize(x,y)
-	local l = len(x,y)
-	if l > 0 then
-		return x/l, y/l
+function vector:__tostring()
+	return "("..tonumber(self.x)..","..tonumber(self.y)..")"
+end
+
+function vector.__unm(a)
+	return new(-a.x, -a.y)
+end
+
+function vector.__add(a,b)
+	assert(isvector(a) and isvector(b), "Add: wrong argument types (<vector> expected)")
+	return new(a.x+b.x, a.y+b.y)
+end
+
+function vector.__sub(a,b)
+	assert(isvector(a) and isvector(b), "Sub: wrong argument types (<vector> expected)")
+	return new(a.x-b.x, a.y-b.y)
+end
+
+function vector.__mul(a,b)
+	if type(a) == "number" then
+		return new(a*b.x, a*b.y)
+	elseif type(b) == "number" then
+		return new(b*a.x, b*a.y)
+	else
+		assert(isvector(a) and isvector(b), "Mul: wrong argument types (<vector> or <number> expected)")
+		return a.x*b.x + a.y*b.y
 	end
-	return x,y
 end
 
-local function rotate(phi, x,y)
+function vector.__div(a,b)
+	assert(isvector(a) and type(b) == "number", "wrong argument types (expected <vector> / <number>)")
+	return new(a.x / b, a.y / b)
+end
+
+function vector.__eq(a,b)
+	return a.x == b.x and a.y == b.y
+end
+
+function vector.__lt(a,b)
+	return a.x < b.x or (a.x == b.x and a.y < b.y)
+end
+
+function vector.__le(a,b)
+	return a.x <= b.x and a.y <= b.y
+end
+
+function vector.permul(a,b)
+	assert(isvector(a) and isvector(b), "permul: wrong argument types (<vector> expected)")
+	return new(a.x*b.x, a.y*b.y)
+end
+
+function vector:toPolar()
+	return new(atan2(self.x, self.y), self:len())
+end
+
+function vector:len2()
+	return self.x * self.x + self.y * self.y
+end
+
+function vector:len()
+	return sqrt(self.x * self.x + self.y * self.y)
+end
+
+function vector.dist(a, b)
+	assert(isvector(a) and isvector(b), "dist: wrong argument types (<vector> expected)")
+	local dx = a.x - b.x
+	local dy = a.y - b.y
+	return sqrt(dx * dx + dy * dy)
+end
+
+function vector.dist2(a, b)
+	assert(isvector(a) and isvector(b), "dist: wrong argument types (<vector> expected)")
+	local dx = a.x - b.x
+	local dy = a.y - b.y
+	return (dx * dx + dy * dy)
+end
+
+function vector:normalizeInplace()
+	local l = self:len()
+	if l > 0 then
+		self.x, self.y = self.x / l, self.y / l
+	end
+	return self
+end
+
+function vector:normalized()
+	return self:clone():normalizeInplace()
+end
+
+function vector:rotateInplace(phi)
 	local c, s = cos(phi), sin(phi)
-	return c*x - s*y, s*x + c*y
+	self.x, self.y = c * self.x - s * self.y, s * self.x + c * self.y
+	return self
 end
 
-local function perpendicular(x,y)
-	return -y, x
+function vector:rotated(phi)
+	local c, s = cos(phi), sin(phi)
+	return new(c * self.x - s * self.y, s * self.x + c * self.y)
 end
 
-local function project(x,y, u,v)
-	local s = (x*u + y*v) / (u*u + v*v)
-	return s*u, s*v
+function vector:perpendicular()
+	return new(-self.y, self.x)
 end
 
-local function mirror(x,y, u,v)
-	local s = 2 * (x*u + y*v) / (u*u + v*v)
-	return s*u - x, s*v - y
+function vector:projectOn(v)
+	assert(isvector(v), "invalid argument: cannot project vector on " .. type(v))
+	-- (self * v) * v / v:len2()
+	local s = (self.x * v.x + self.y * v.y) / (v.x * v.x + v.y * v.y)
+	return new(s * v.x, s * v.y)
+end
+
+function vector:mirrorOn(v)
+	assert(isvector(v), "invalid argument: cannot mirror vector on " .. type(v))
+	-- 2 * self:projectOn(v) - self
+	local s = 2 * (self.x * v.x + self.y * v.y) / (v.x * v.x + v.y * v.y)
+	return new(s * v.x - self.x, s * v.y - self.y)
+end
+
+function vector:cross(v)
+	assert(isvector(v), "cross: wrong argument types (<vector> expected)")
+	return self.x * v.y - self.y * v.x
 end
 
 -- ref.: http://blog.signalsondisplay.com/?p=336
-local function trim(maxLen, x, y)
-	local s = maxLen * maxLen / len2(x, y)
-	s = s > 1 and 1 or math.sqrt(s)
-	return x * s, y * s
+function vector:trimInplace(maxLen)
+	local s = maxLen * maxLen / self:len2()
+	s = (s > 1 and 1) or math.sqrt(s)
+	self.x, self.y = self.x * s, self.y * s
+	return self
 end
 
-local function angleTo(x,y, u,v)
-	if u and v then
-		return atan2(y, x) - atan2(v, u)
+function vector:angleTo(other)
+	if other then
+		return atan2(self.y, self.x) - atan2(other.y, other.x)
 	end
-	return atan2(y, x)
+	return atan2(self.y, self.x)
 end
+
+function vector:trimmed(maxLen)
+	return self:clone():trimInplace(maxLen)
+end
+
 
 -- the module
-return {
-	str = str,
-
+return setmetatable({
+	new             = new,
 	fromPolar       = fromPolar,
-	toPolar         = toPolar,
 	randomDirection = randomDirection,
-
-	-- arithmetic
-	mul    = mul,
-	div    = div,
-	idiv   = idiv,
-	add    = add,
-	sub    = sub,
-	permul = permul,
-	dot    = dot,
-	det    = det,
-	cross  = det,
-
-	-- relation
-	eq = eq,
-	lt = lt,
-	le = le,
-
-	-- misc operations
-	len2          = len2,
-	len           = len,
-	dist2         = dist2,
-	dist          = dist,
-	normalize     = normalize,
-	rotate        = rotate,
-	perpendicular = perpendicular,
-	project       = project,
-	mirror        = mirror,
-	trim          = trim,
-	angleTo       = angleTo,
-}
+	isvector        = isvector,
+	zero            = zero
+}, {
+	__call = function(_, ...) return new(...) end
+})
